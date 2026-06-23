@@ -4,10 +4,11 @@
   </a>
 </p>
 
-[![ci](https://github.com/OKDP/okdp-superset/actions/workflows/ci.yml/badge.svg)](https://github.com/OKDP/okdp-superset/actions/workflows/ci.yml)
-[![release-please](https://github.com/OKDP/okdp-superset/actions/workflows/release-please.yml/badge.svg)](https://github.com/OKDP/okdp-superset/actions/workflows/release-please.yml)
+[![CI](https://github.com/OKDP/spark-history-server/actions/workflows/ci.yml/badge.svg)](https://github.com/OKDP/spark-history-server/actions/workflows/ci.yml)
+[![release-please](https://github.com/OKDP/spark-history-server/actions/workflows/release-please.yml/badge.svg)](https://github.com/OKDP/spark-history-server/actions/workflows/release-please.yml)
 [![Release](https://img.shields.io/github/v/release/OKDP/spark-history-server)](https://github.com/OKDP/spark-history-server/releases/latest)
 [![License Apache2](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
+
 
 # OKDP Spark History Server
 
@@ -53,13 +54,13 @@ This repository fills that gap by delivering:
 
 ## Architecture
 
-The diagram below shows the components that a `helm install` of this chart creates inside a Kubernetes cluster. For the upstream Spark History Server runtime design , see the [official Apache Superset documentation](https://superset.apache.org/docs/intro).
+The diagram below shows the components that a `helm install` of this chart creates inside a Kubernetes cluster. For the upstream Spark History Server runtime design , see the [official Apache Spark History Server documentation](https://spark.apache.org/docs/latest/running-on-kubernetes.html).
 
 <p align="center">
-  <img src="docs/assets/architecture.svg" alt="OKDP Superset — deployment architecture" width="800" />
+  <img src="docs/assets/architecture.svg" alt="OKDP Spark History Server — deployment architecture" width="800" />
 </p>
 
-## Prerequisites
+## Requirements
 
 - A Kubernetes cluster with a default `StorageClass` providing dynamic PV provisioning (the bundled PostgreSQL and Redis subcharts request PVCs by default).
 - [Helm](https://helm.sh/) `>= 3`.
@@ -68,9 +69,9 @@ The diagram below shows the components that a `helm install` of this chart creat
 
 | Tool | Version |
 |:-----|:--------|
-| Kubernetes (Kind) | `0.31.0` |
-| Kind | `0.23.0` |
-| Helm CLI | `3.20.0` |
+| Kubernetes (Kind) | `1.35.1` |
+| Kind | `0.31.0` |
+| Helm CLI | `29.2.1` |
 | kubectl | `1.35.1` |
 | Docker | `29.2.1` |
 
@@ -84,7 +85,7 @@ Install the spark-history-server with the serviceAccount
 helm upgrade --install spark-history-server oci://quay.io/okdp/charts/spark-history-server \
   --version 1.0.0 \
   --namespace $NAMESPACE --create-namespace \
-  --set serviceAccount.name=$SPARK_SERVICE_ACCOUNT
+  --set serviceAccount.name=$SPARK_SERVICE_ACCOUNT \
   --wait \
   --timeout 10m
 ```
@@ -99,10 +100,10 @@ STATUS: deployed
 REVISION: 1
 ```
 
-Verify the deployment and service:
+Verify the pods are running:
 
 ```sh
-kubectl get pods,svc -n spark -l app.kubernetes.io/name=spark-history-server
+kubectl get pods -n spark -l app.kubernetes.io/name=spark-history-server
 ```
 
 **Expected result:**
@@ -110,10 +111,9 @@ kubectl get pods,svc -n spark -l app.kubernetes.io/name=spark-history-server
 ```text
 NAME                                        READY   STATUS    RESTARTS   AGE
 pod/spark-history-server-xxxxxxxxxx-yyyyy   1/1     Running   0          1m
-
-NAME                           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)     AGE
-service/spark-history-server   ClusterIP   <cluster-ip>    <none>        18080/TCP   1m
 ```
+
+The pod hash suffix (`...`) varies per install.
 
 > Replace `1.0.0` with the latest chart version from [Releases](https://github.com/OKDP/spark-history-server/releases).
 
@@ -142,6 +142,17 @@ The table below lists the main values that usually need to be reviewed. For the 
 
 ---
 
+## Components
+
+This repository is a Helm chart repository. It does not build a dedicated Docker image; it deploys Spark History Server using the OKDP Spark runtime image.
+The Helm chart is published under [quay.io/okdp/charts/spark-history-server](https://quay.io/repository/okdp/charts/spark-history-server):
+
+| Component | Type | Purpose | Installed by default | Main configuration |
+|-----------|------|---------|:--------------------:|--------------------|
+| `spark-history-server` | Helm chart | Packages the Kubernetes resources required to run Spark History Server. | Yes | Chart version `1.0.0`, app version `3.5.1` |
+
+---
+
 ## OKDP Integration
 
 This component is part of the [OKDP Data Platform](https://okdp.io) — a cloud-native, open-source data platform for Kubernetes.
@@ -157,193 +168,12 @@ Typical OKDP integration points:
 
 ---
 
-## Troubleshooting
-
-### No applications are visible in the UI
-
-**Symptom:** the UI loads, but the application list is empty.
-
-**Cause:** Spark applications are not writing event logs, or `spark.eventLog.dir` does not match `spark.history.fs.logDirectory`.
-
-**Fix:** verify both Spark-side and History Server-side configuration:
-
-```sh
-kubectl get configmap spark-history-server -n spark -o yaml | grep -A20 history-server.conf
-```
-
-Then ensure Spark jobs include:
-
-```properties
-spark.eventLog.enabled true
-spark.eventLog.dir <same-directory-as-spark.history.fs.logDirectory>
-```
-
-Verif the log dir are the same for job and Spark history server:
-```sh
-kubectl get configmap  -n spark -oyaml | grep -E "spark.eventLog.dir|spark.history.fs.logDirectory"
-```
-
-
-### Pod stuck in `Pending`
-
-**Symptom:** `kubectl get pods -n spark` shows `Pending`.
-
-**Cause:** insufficient cluster resources, scheduling constraints, or missing storage/secret dependencies.
-
-**Fix:** inspect the pod events:
-
-```sh
-kubectl describe pod -n spark -l app.kubernetes.io/name=spark-history-server
-```
-
-Look for `Events:` at the bottom of the output to identify the root cause.
-
-### `ImagePullBackOff` or `ErrImagePull`
-
-**Symptom:** the pod cannot pull `quay.io/okdp/spark:<tag>`.
-
-**Cause:** the image tag is incorrect, the cluster cannot reach `quay.io`, or an image pull secret is required in your environment.
-
-**Fix:** verify the configured image and cluster egress:
-
-```sh
-helm get values spark-history-server -n spark
-kubectl describe pod -n spark -l app.kubernetes.io/name=spark-history-server
-```
-
-If your cluster needs a pull secret, configure `imagePullSecrets`.
-
-### S3 event logs are not readable
-
-**Symptom:** the pod starts, but logs show S3 authentication, endpoint, or filesystem errors.
-
-**Cause:** missing S3 credentials, incorrect endpoint, missing path-style configuration, or a wrong event log URI.
-
-**Fix:** check the mounted configuration and secret references:
-
-```sh
-kubectl get secret s3-secret -n spark
-kubectl logs deploy/spark-history-server -n spark
-kubectl get configmap spark-history-server -n spark -o yaml
-```
-
-Verify `spark.hadoop.fs.s3a.endpoint`, `spark.hadoop.fs.s3a.path.style.access`, and `spark.history.fs.logDirectory`.
-
-### Port-forward fails
-
-**Symptom:** `kubectl port-forward` exits with a connection error.
-
-**Cause:** the service has no ready endpoint, the pod is not running, or the service name differs from the release name.
-
-**Fix:** inspect service endpoints:
-
-```sh
-kubectl get svc,endpoints -n spark
-kubectl get pods -n spark
-```
-
-Use the actual service name shown by `kubectl get svc -n spark`.
-
----
-
-## Test
-
-#### Step Test 0.1 Install the spark-rbac to get a serviceAccount
-#### Step Test 0.2 Upgrade the spark-history-server with the serviceAccount
-#### Step Test 0.3 Install the spark-operator with the serviceAccount, JobNamespaces
-
-#### Step Test 1.1.1 create a seaweedfs secret
-#### Step Test 1.1.2 create a spark-history-server secret
-#### Step Test 1.3 create and apply filer, iamConfig and s3Config for spark-history-server
-#### Step Test 1.4 create and apply seadweedfs auth config values
-#### Step Test 1.5 create and apply spark event log directory for spark job
-#### Step Test 1.6 create and apply spark history server configuration to access events log
-(in the 06-spark-history-server-values.yaml file)
-
-Here the most important values to set the S3 bundle access
-For exemple:
-config:
-  spark.history.provider: org.apache.spark.deploy.history.FsHistoryProvider
-  spark.history.fs.logDirectory: s3a://spark-events/event-logs/
-  spark.hadoop.fs.s3a.endpoint: http://seaweedfs-s3.spark.svc.cluster.local:8333
-  spark.hadoop.fs.s3a.connection.ssl.enabled: false
-  spark.hadoop.fs.s3a.path.style.access: true
-  spark.hadoop.fs.s3a.impl: org.apache.hadoop.fs.s3a.S3AFileSystem
-  spark.hadoop.fs.s3a.aws.credentials.provider: com.amazonaws.auth.EnvironmentVariableCredentialsProvider
-
-#### Step 7 Upgrade Spark History Server with SeaweedFS values
-
-```bash
-helm update --install spark-history-server oci://quay.io/okdp/charts/spark-history-server --version 1.0.0 \
-  --namespace spark \
-  --values 06-spark-history-server-values.yaml \
-  --wait \
-  --timeout 10m
-```
-If the installation fails with a message such as `host "...okdp.sandbox" and path "/" are already defined`, it means that another entry point is already using the same URL in the cluster. In this case, remove the old entry point or modify the host in the corresponding values file before rerunning the command.
-
-#### Step 8. Start the Spark Pi Job
-
-Set the job manifest
-- spark configuration : 
-  - logDir for the jobs to S3 bundle
-  - serviceAccount for Spark application
-  - S3 Seaweedfs enpoint
-- env driver
-  - serviceAccount for Spark application
-  - AWS_ACCESS_KEY_ID from creds-spark-history-s3 accessKey
-  - AWS_SECRET_ACCESS_KEY from creds-spark-history-s3 secretKey
-- env executor
-  - AWS_ACCESS_KEY_ID from creds-spark-history-s3 accessKey
-  - AWS_SECRET_ACCESS_KEY from creds-spark-history-s3 secretKey
-
-Click above to retrieve the manifest creation command before applying it.
-```sh
-kubectl apply -f ./spark-s3-okdp-pi-for-spark-hs.yaml
-```
-
-After running job, check the finished jobs list in spark-history-server:
-
-```sh
-kubectl port-forward svc/spark-history-server 18080:18080 -n spark &
-curl http://localhost:18080/api/v1/applications
-```
-
-Expected result:
-jobs list
-```log
-[ {
-  "id" : "<spark-job-id>",
-  "name" : "Spark Pi",
-  "attempts" : [ {
-    "startTime" : "<start-timestamp>",
-    "endTime" : "<end-timestamp>",
-    "lastUpdated" : "<update-start-timestamp>",
-    "duration" : 7415,
-    "sparkUser" : "spark",
-    "completed" : true,
-    "appSparkVersion" : "3.5.6",
-    "startTimeEpoch" : <start-epochtimestamp>,
-    "endTimeEpoch" : <end-epochtimestamp>,
-    "lastUpdatedEpoch" : <update-epochtimestamp>
-  } ]
-} ]
-```
-
-If you want to apply the Job again
-```sh
-kubectl delete -f ./spark-s3-okdp-pi-for-spark-hs.yaml
-```
-
-## Cleanup
+### Cleanup
 
 Removes all Kubernetes components associated with the chart and deletes the release.
 
 ```sh
-helm uninstall spark-operator -n spark
 helm uninstall spark-history-server -n spark
-helm uninstall seaweedfs -n spark
-helm uninstall seaweedfs-auth-config -n spark
 ```
 
 If the namespace was created only for this installation, remove it:
