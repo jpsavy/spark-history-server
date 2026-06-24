@@ -3,7 +3,7 @@
 Two tests are proposed: the first uses a PVC for event-log storage, the second uses SeaweedFS (S3) storage.
 
 Add spark-rbac and spark-operator
-## Re Installation
+## Prerequisites
 
 Install the spark-rbac to get a serviceAccount
 
@@ -55,7 +55,7 @@ Install the spark-operator. It must watch the same namespace where the Spark job
 
 ```bash
 curl -Lo spark-operator.tgz https://github.com/kubeflow/spark-operator/releases/download/v2.5.0/spark-operator-2.5.0.tgz
-helm install spark-operator ./spark-operator.tgz \
+helm upgrade --install spark-operator ./spark-operator.tgz \
   --set "spark.jobNamespaces={spark}" \
   --set serviceAccount.name=$SPARK_SERVICE_ACCOUNT \
   --namespace spark --create-namespace
@@ -79,7 +79,7 @@ Create the spark service account:
 ```bash
 export SPARK_SERVICE_ACCOUNT=spark
 export NAMESPACE=spark
-helm install spark-rbac  oci://quay.io/okdp/charts/spark-rbac:1.0.0 \
+helm upgrade --install spark-rbac  oci://quay.io/okdp/charts/spark-rbac:1.0.0 \
   --set serviceAccount.name=$SPARK_SERVICE_ACCOUNT \
   -n $NAMESPACE
 ```
@@ -129,7 +129,7 @@ curl -Lo spark-operator.tgz https://github.com/kubeflow/spark-operator/releases/
 
 export SPARK_SERVICE_ACCOUNT=spark
 export NAMESPACE=spark
-helm install spark-operator ./spark-operator.tgz \
+helm upgrade --install spark-operator ./spark-operator.tgz \
   --set "spark.jobNamespaces={spark}" \
   --set serviceAccount.name=$SPARK_SERVICE_ACCOUNT \
   --namespace spark --create-namespace
@@ -291,8 +291,8 @@ Expected result
 
 To activate the Job again
 ```sh
-kubectl delete -f ./spark-s3-okdp-pi-for-spark-hs.yaml
-kubectl apply -f ./spark-s3-okdp-pi-for-spark-hs.yaml
+kubectl delete -f ./spark-okdp-pi-for-spark-hs.yaml
+kubectl apply -f ./spark-okdp-pi-for-spark-hs.yaml
 ```
 
 ---
