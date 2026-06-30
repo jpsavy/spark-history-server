@@ -222,6 +222,7 @@ This component is part of the OKDP Data Platform, a cloud-native, open-source da
 |---|---|
 | Upstream [Apache Spark History Server](https://spark.apache.org/docs/latest/monitoring.html#viewing-after-the-fact) chart | You don't need the OKDP OAuth2/OIDC, Trino or externalized-Secrets defaults and prefer wiring integrations yourself. |
 | [spark-web-proxy](https://github.com/OKDP/spark-web-proxy) | You also need *running* applications visible in the History Server UI, not only completed ones. |
+| [OKDP Spark Auth Filter](https://github.com/OKDP/okdp-spark-auth-filter) | Complementary OKDP component to secure Spark Web UIs and Spark History Server with OAuth2/OIDC. Use it when the History Server UI must be protected by an identity provider and Spark ACLs should be driven by user email, groups, or roles. |
 
 ## Contributing & License
 
